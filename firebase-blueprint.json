@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and business settings",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Business Name" },
+        "email": { "type": "string", "format": "email", "description": "Business Email" },
+        "phone": { "type": "string", "description": "Business Phone" },
+        "address": { "type": "string", "description": "Business Address" },
+        "logo": { "type": "string", "description": "Base64 or URL to Logo" },
+        "receiptCount": { "type": "number", "description": "Current number of receipts issued" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email"]
+    },
+    "Receipt": {
+      "title": "Receipt",
+      "description": "Generated receipt document",
+      "type": "object",
+      "properties": {
+        "number": { "type": "number" },
+        "date": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string", "format": "email" },
+        "customerAddress": { "type": "string" },
+        "notes": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "subtotal": { "type": "number" },
+        "discountValue": { "type": "number" },
+        "discountType": { "type": "string", "enum": ["percent", "amount"] },
+        "taxRate": { "type": "number" },
+        "total": { "type": "number" },
+        "currency": { "type": "string" },
+        "currencySymbol": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["number", "date", "customerName", "items", "subtotal", "total"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User's business profile and global settings"
+    },
+    "users/{userId}/receipts/{receiptId}": {
+      "schema": "Receipt",
+      "description": "Collection of receipts issued by the user"
+    }
+  }
+}

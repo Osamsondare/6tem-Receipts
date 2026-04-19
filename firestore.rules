@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- User Validation ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 200
+        && (data.get('phone', '') is string && data.get('phone', '').size() <= 50)
+        && (data.get('address', '') is string && data.get('address', '').size() <= 500)
+        && (data.get('logo', null) == null || (data.logo is string && data.logo.size() <= 4000000))
+        && (data.get('receiptCount', 0) is number);
+    }
+
+    // --- Receipt Validation ---
+    function isValidReceipt(data) {
+      return data.keys().hasAll(['number', 'date', 'customerName', 'items', 'subtotal', 'taxRate', 'total', 'currency', 'currencySymbol'])
+        && data.number is number
+        && data.date is string && data.date.size() <= 20
+        && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 100
+        && data.items is list && data.items.size() <= 50
+        && data.subtotal is number
+        && data.taxRate is number
+        && data.total is number
+        && data.currency is string && data.currency.size() <= 10
+        && data.currencySymbol is string && data.currencySymbol.size() <= 10;
+    }
+
+    // --- Routes ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming())
+                       && incoming().createdAt == request.time;
+      allow update: if isOwner(userId) && isValidUser(incoming())
+                       && incoming().createdAt == existing().createdAt // Immutable timestamp
+                       && (
+                         // Action: Update Profile
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'address', 'logo', 'updatedAt', 'receiptCount'])
+                       )
+                       && incoming().updatedAt == request.time;
+    }
+
+    match /users/{userId}/receipts/{receiptId} {
+      allow list: if isOwner(userId);
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(receiptId) && isValidReceipt(incoming())
+                       && incoming().createdAt == request.time;
+      // Receipts are typically immutable after creation in this app context,
+      // but let's allow deletes if the user wants to clear history.
+      allow delete: if isOwner(userId);
+    }
+  }
+}
