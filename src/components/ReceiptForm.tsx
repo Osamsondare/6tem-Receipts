@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, ReceiptText, Sparkles, Download, Share2, User, Mail, MapPin, CheckCircle2, StickyNote, Loader2, FileText } from "lucide-react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import { Plus, Trash2, ReceiptText, Sparkles, Download, Share2, User, Mail, MapPin, CheckCircle2, StickyNote, Loader2, FileText, Camera } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useCurrency } from "../contexts/CurrencyContext";
 import { useBusiness } from "../contexts/BusinessContext";
@@ -8,6 +8,7 @@ import { toPng } from 'html-to-image';
 import download from 'downloadjs';
 import { QRCodeSVG } from 'qrcode.react';
 import { jsPDF } from "jspdf";
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface ReceiptFormProps {
   onGenerate: (data: Omit<Receipt, 'number' | 'id'>) => Promise<void>;
@@ -81,6 +82,95 @@ export default function ReceiptForm({ onGenerate, receiptNumber }: ReceiptFormPr
     localStorage.setItem("6tem_receipt_draft_discount_type", discountType);
   }, [customerName, customerEmail, customerAddress, notes, items, taxRate, discountValue, discountType]);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isScanning, setIsScanning] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(file);
+      });
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            inlineData: {
+              mimeType: file.type,
+              data: base64,
+            },
+          },
+          {
+            text: "Analyze this physical receipt and extract all relevant data into JSON. Focus on accuracy for customer name, items (name, description, quantity, unit price), tax rate, and discount. Use the provided schema.",
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              customerName: { type: Type.STRING },
+              customerEmail: { type: Type.STRING },
+              customerAddress: { type: Type.STRING },
+              notes: { type: Type.STRING },
+              items: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    quantity: { type: Type.NUMBER },
+                    price: { type: Type.NUMBER },
+                  },
+                  required: ["name", "quantity", "price"]
+                }
+              },
+              discountValue: { type: Type.NUMBER },
+              discountType: { type: Type.STRING, enum: ["percent", "amount"] },
+              taxRate: { type: Type.NUMBER },
+            },
+            required: ["items"]
+          }
+        }
+      });
+
+      const result = JSON.parse(response.text);
+      
+      if (result.customerName) setCustomerName(result.customerName);
+      if (result.customerEmail) setCustomerEmail(result.customerEmail);
+      if (result.customerAddress) setCustomerAddress(result.customerAddress);
+      if (result.notes) setNotes(result.notes);
+      
+      if (result.items && result.items.length > 0) {
+        setItems(result.items.map((item: any) => ({
+          id: Math.random().toString(36).substr(2, 9),
+          name: item.name || "",
+          description: item.description || "",
+          quantity: typeof item.quantity === 'number' ? item.quantity : 1,
+          price: typeof item.price === 'number' ? item.price : 0
+        })));
+      }
+      
+      if (typeof result.discountValue === 'number') setDiscountValue(result.discountValue);
+      if (result.discountType) setDiscountType(result.discountType);
+      if (typeof result.taxRate === 'number') setTaxRate(result.taxRate);
+
+    } catch (err) {
+      console.error("Scanning failed", err);
+      alert("Smart Scan failed. Ensure your Gemini API Key is configured in settings and the image is clear.");
+    } finally {
+      setIsScanning(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const subtotal = useMemo(() => {
     return items.reduce((acc, item) => {
@@ -328,14 +418,44 @@ export default function ReceiptForm({ onGenerate, receiptNumber }: ReceiptFormPr
           <h2 className="text-3xl font-extrabold tracking-tighter text-primary">Generate Receipt</h2>
           <div className="flex items-center gap-3">
             <p className="text-text-muted font-medium text-sm">Professional invoicing for your business.</p>
-            {(customerName || customerEmail || customerAddress || (items.length > 1 || items[0].name || items[0].price > 0)) && (
+            <div className="flex items-center gap-2">
+              {(customerName || customerEmail || customerAddress || (items.length > 1 || items[0].name || items[0].price > 0)) && (
+                <button 
+                  onClick={() => setShowResetConfirm(true)}
+                  className="text-[10px] font-bold text-error uppercase tracking-widest hover:underline px-2 py-1 rounded hover:bg-error/5 transition-colors"
+                >
+                  Reset Form
+                </button>
+              )}
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="image/*"
+                className="hidden"
+              />
               <button 
-                onClick={() => setShowResetConfirm(true)}
-                className="text-[10px] font-bold text-error uppercase tracking-widest hover:underline px-2 py-1 rounded hover:bg-error/5 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.15em] transition-all ${
+                  isScanning 
+                    ? "bg-accent/10 text-accent animate-pulse" 
+                    : "bg-primary text-bg hover:bg-accent hover:shadow-lg hover:shadow-accent/20"
+                }`}
               >
-                Reset Form
+                {isScanning ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <Camera size={12} />
+                    Magic AI Scan
+                  </>
+                )}
               </button>
-            )}
+            </div>
           </div>
         </div>
         <div className="bg-accent/5 p-3 rounded-xl border border-accent/10">

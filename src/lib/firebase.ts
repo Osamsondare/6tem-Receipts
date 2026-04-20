@@ -1,24 +1,30 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Use initializeFirestore with forceLongPolling to resolve connection issues in restricted environments
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true
+}, firebaseConfig.firestoreDatabaseId);
+
 export const googleProvider = new GoogleAuthProvider();
 
 export async function testConnection() {
   try {
-    // Attempt to read a dummy document to test connection/auth
+    // Attempt to read a dummy document with a timeout
     await getDocFromServer(doc(db, '_connection_test_', 'ping'));
     console.log("Firebase connection established.");
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration or internet connection.");
+  } catch (error: any) {
+    if (error?.code === 'unavailable') {
+      console.warn("Firestore is temporarily unavailable. The app will work in offline mode and sync later.");
+    } else if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Connection failed. Please check your internet or firewall settings.");
     }
-    // Note: Permission denied is expected if the doc doesn't exist or isn't readable, 
-    // which is fine for a connection test.
+    // Permission denied or Not found are acceptable connection signs
   }
 }
 

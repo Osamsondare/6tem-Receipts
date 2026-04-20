@@ -54,7 +54,15 @@ export default function Auth({ onLogin, onViewChange }: AuthProps) {
       await signInWithPopup(auth, googleProvider);
       onLogin();
     } catch (err: any) {
-      setErrors({ auth: err.message });
+      let message = "Google Sign-In failed";
+      if (err.code === 'auth/popup-closed-by-user') {
+        message = "Sign-in window closed before completion. Please try again.";
+      } else if (err.code === 'auth/network-request-failed') {
+        message = "Connect error. Please check your internet and try again.";
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        message = "Sign-in was cancelled. Please try again.";
+      }
+      setErrors({ auth: message });
     } finally {
       setLoading(false);
     }
@@ -73,12 +81,16 @@ export default function Auth({ onLogin, onViewChange }: AuthProps) {
         onLogin();
       } catch (err: any) {
         let message = "Authentication failed";
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
           message = "Invalid email or password";
         } else if (err.code === 'auth/email-already-in-use') {
-          message = "Email already in use";
-        } else if (err.code === 'auth/invalid-credential') {
-          message = "Invalid credentials";
+          message = "This email is already registered";
+        } else if (err.code === 'auth/network-request-failed') {
+          message = "Network error. Please check your connection.";
+        } else if (err.code === 'auth/weak-password') {
+          message = "Password must be at least 6 characters";
+        } else if (err.code === 'auth/too-many-requests') {
+          message = "Too many attempts. Please try again later.";
         }
         setErrors({ auth: message });
       } finally {

@@ -15,6 +15,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && 
+             request.auth.token.email == "emerandaglobalinvestment@gmail.com" && 
+             request.auth.token.email_verified == true;
+    }
+
+    function isNotDisabled() {
+      return !isSignedIn() || 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('disabled', false) == false;
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -35,7 +46,8 @@ service cloud.firestore {
         && (data.get('phone', '') is string && data.get('phone', '').size() <= 50)
         && (data.get('address', '') is string && data.get('address', '').size() <= 500)
         && (data.get('logo', null) == null || (data.logo is string && data.logo.size() <= 4000000))
-        && (data.get('receiptCount', 0) is number);
+        && (data.get('receiptCount', 0) is number)
+        && (data.get('disabled', false) is bool);
     }
 
     // --- Receipt Validation ---
@@ -55,26 +67,33 @@ service cloud.firestore {
     // --- Routes ---
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if (isOwner(userId) || isAdmin()) && isNotDisabled();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidUser(incoming())
                        && incoming().createdAt == request.time;
-      allow update: if isOwner(userId) && isValidUser(incoming())
-                       && incoming().createdAt == existing().createdAt // Immutable timestamp
-                       && (
-                         // Action: Update Profile
-                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'address', 'logo', 'updatedAt', 'receiptCount'])
-                       )
-                       && incoming().updatedAt == request.time;
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming())
+                       && isNotDisabled()
+                       && (isAdmin() || (
+                         incoming().createdAt == existing().createdAt // Immutable timestamp
+                         && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'address', 'logo', 'updatedAt', 'receiptCount'])
+                       ))
+                       && (isAdmin() || incoming().updatedAt == request.time);
     }
 
     match /users/{userId}/receipts/{receiptId} {
-      allow list: if isOwner(userId);
-      allow get: if isOwner(userId);
+      allow list: if (isOwner(userId) || isAdmin()) && isNotDisabled();
+      allow get: if (isOwner(userId) || isAdmin()) && isNotDisabled();
       allow create: if isOwner(userId) && isValidId(receiptId) && isValidReceipt(incoming())
+                       && isNotDisabled()
                        && incoming().createdAt == request.time;
       // Receipts are typically immutable after creation in this app context,
       // but let's allow deletes if the user wants to clear history.
-      allow delete: if isOwner(userId);
+      allow delete: if isOwner(userId) && isNotDisabled();
+    }
+
+    // Support for Admin collectionGroup queries
+    match /{path=**}/receipts/{receiptId} {
+      allow list, get: if isAdmin();
     }
   }
 }

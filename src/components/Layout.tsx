@@ -1,8 +1,9 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Menu, Home, History, PlusCircle, User, LogOut, Sun, Moon, X, Shield, Info, FileText } from "lucide-react";
+import { Menu, Home, History, PlusCircle, User, LogOut, Sun, Moon, X, Shield, Info, FileText, ShieldCheck } from "lucide-react";
 import { useBusiness } from "../contexts/BusinessContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { auth } from "../lib/firebase";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,12 +17,14 @@ export default function Layout({ children, currentView, onViewChange, onLogout }
   const { theme, toggleTheme } = useTheme();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   
+  const isAdmin = auth.currentUser?.email === "emerandaglobalinvestment@gmail.com";
+
   const initials = businessInfo.name
     ? businessInfo.name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase()
     : "6T";
 
   return (
-    <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-bg shadow-2xl relative transition-colors duration-300 overflow-x-hidden">
+    <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-bg text-text-main relative transition-colors duration-300 overflow-x-hidden border-x border-border shadow-2xl shadow-slate-900/10">
       {/* Sidebar Drawer Overlay */}
       <AnimatePresence>
         {isMenuOpen && (
@@ -37,51 +40,62 @@ export default function Layout({ children, currentView, onViewChange, onLogout }
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border shadow-2xl overflow-y-auto"
             >
-              <div className="p-6 space-y-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center text-white shadow-lg">
-                      <PlusCircle size={24} />
+              <div className="p-6 space-y-8 flex flex-col h-full">
+                <div className="flex-1 space-y-8">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center text-white shadow-lg">
+                        <PlusCircle size={24} />
+                      </div>
+                      <span className="font-black text-primary tracking-tighter">6tem Menu</span>
                     </div>
-                    <span className="font-black text-primary tracking-tighter">6tem Menu</span>
+                    <button 
+                      onClick={() => setIsMenuOpen(false)}
+                      className="p-2 text-text-muted hover:bg-bg rounded-lg transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => setIsMenuOpen(false)}
-                    className="p-2 text-text-muted hover:bg-bg rounded-lg transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
 
-                <div className="space-y-2">
-                  <SidebarItem 
-                    icon={<Home size={20} />} 
-                    label="Dashboard" 
-                    isActive={currentView === "dashboard"}
-                    onClick={() => { onViewChange("dashboard"); setIsMenuOpen(false); }}
-                  />
-                  <SidebarItem 
-                    icon={<History size={20} />} 
-                    label="Transaction History" 
-                    isActive={currentView === "history"}
-                    onClick={() => { onViewChange("history"); setIsMenuOpen(false); }}
-                  />
-                  <SidebarItem 
-                    icon={<PlusCircle size={20} />} 
-                    label="Create Receipt" 
-                    isActive={currentView === "new"}
-                    onClick={() => { onViewChange("new"); setIsMenuOpen(false); }}
-                  />
-                  <SidebarItem 
-                    icon={<User size={20} />} 
-                    label="Business Profile" 
-                    isActive={currentView === "profile"}
-                    onClick={() => { onViewChange("profile"); setIsMenuOpen(false); }}
-                  />
-                </div>
+                  <div className="space-y-2">
+                    <SidebarItem 
+                      icon={<Home size={20} />} 
+                      label="Dashboard" 
+                      isActive={currentView === "dashboard"}
+                      onClick={() => { onViewChange("dashboard"); setIsMenuOpen(false); }}
+                    />
+                    <SidebarItem 
+                      icon={<History size={20} />} 
+                      label="Transaction History" 
+                      isActive={currentView === "history"}
+                      onClick={() => { onViewChange("history"); setIsMenuOpen(false); }}
+                    />
+                    <SidebarItem 
+                      icon={<PlusCircle size={20} />} 
+                      label="Create Receipt" 
+                      isActive={currentView === "new"}
+                      onClick={() => { onViewChange("new"); setIsMenuOpen(false); }}
+                    />
+                    <SidebarItem 
+                      icon={<User size={20} />} 
+                      label="Business Profile" 
+                      isActive={currentView === "profile"}
+                      onClick={() => { onViewChange("profile"); setIsMenuOpen(false); }}
+                    />
+                    {isAdmin && (
+                      <div className="pt-2">
+                        <SidebarItem 
+                          icon={<ShieldCheck size={20} />} 
+                          label="Admin Command Center" 
+                          isActive={currentView === "admin"}
+                          onClick={() => { onViewChange("admin"); setIsMenuOpen(false); }}
+                        />
+                      </div>
+                    )}
+                  </div>
 
                 <div className="pt-6 border-t border-border space-y-2">
                   <p className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] px-3 mb-2">Information</p>
@@ -131,8 +145,9 @@ export default function Layout({ children, currentView, onViewChange, onLogout }
                   </button>
                 </div>
               </div>
+            </div>
 
-              <div className="absolute bottom-6 left-6 right-6 text-center">
+            <div className="absolute bottom-6 left-6 right-6 text-center">
                 <p className="text-[10px] text-text-muted font-bold tracking-widest uppercase opacity-40">Version 1.2.0</p>
               </div>
             </motion.div>

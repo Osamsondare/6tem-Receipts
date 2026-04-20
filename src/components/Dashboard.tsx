@@ -1,4 +1,4 @@
-import { Plus, Settings, Coffee, Receipt, ChevronRight, TrendingUp } from "lucide-react";
+import { Plus, Settings, Coffee, Receipt, ChevronRight, TrendingUp, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { useCurrency } from "../contexts/CurrencyContext";
 import { Receipt as ReceiptType } from "../types";
@@ -80,6 +80,31 @@ export default function Dashboard({
             <Plus size={18} strokeWidth={3} />
             Create New Receipt
           </button>
+        </div>
+      </motion.div>
+
+      {/* Magic Scan Callout */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-6 text-white shadow-lg overflow-hidden relative group cursor-pointer"
+        onClick={onCreateClick}
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700" />
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-yellow-300" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">New Feature</span>
+            </div>
+            <h3 className="text-xl font-black tracking-tight leading-tight">Magic AI Scan</h3>
+            <p className="text-xs font-medium opacity-80 leading-relaxed max-w-[200px]">
+              Instantly extract data from photos using Gemini AI.
+            </p>
+          </div>
+          <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md border border-white/20">
+            <Receipt size={32} />
+          </div>
         </div>
       </motion.div>
 
